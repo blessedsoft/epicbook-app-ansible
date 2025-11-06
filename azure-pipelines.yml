@@ -22,7 +22,8 @@ stages:
   - stage: ansibleAction
     displayName: 'Ansible Deployment'
     jobs:
-      - job: ansible
+      - job: ansible-playbook
+        displayName: 'Deployment with Ansible'
         steps:
           - script: |
               if [ -z "${{ parameters.vm_public_ip }}" ] || [ -z "${{ parameters.rds_endpoint }}" ]; then
