@@ -8,6 +8,7 @@
       - git
       - nodejs
       - npm
+      - mariadb1011-server
       - python3-pip
     state: present
   tags: ["packages"]
@@ -19,21 +20,10 @@
     version: "main"
     force: true
 
-- name: Download MySQL Yum repository RPM
-  ansible.builtin.get_url:
-    url: https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm
-    dest: /tmp/mysql80-community-release-el9-1.noarch.rpm
-    mode: '0644'
-    headers:
-      User-Agent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-
-- name: Install MySQL Yum repository
-  ansible.builtin.dnf:
-    name: /tmp/mysql80-community-release-el9-1.noarch.rpm
-    state: present
-    disable_gpg_check: true
-
-- name: Install MySQL Community Client
-  ansible.builtin.dnf:
-    name: mysql-community-client
-    state: present
+- name: Start and enable MariaDB
+  ansible.builtin.service:
+    name: mariadb
+    state: started
+    enabled: true
+  register: app_mariadb_service
+  tags: ['database']
