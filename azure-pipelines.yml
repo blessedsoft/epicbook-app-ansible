@@ -1,0 +1,89 @@
+trigger: 
+  - main
+
+pool: 
+  name: 'aws-ubuntu'
+
+variables: 
+  - group: terraform-variables
+  - group: database-vars
+
+parameters:
+  - name: 'vm_public_ip'
+    type: string
+    default: ''
+    displayName: 'VM Public IP'
+  - name: 'rds_endpoint'
+    type: string
+    default: ''
+    displayName: 'RDS Endpoint'
+
+
+stages:
+  - stage: ansibleAction
+    displayName: 'Ansible Deployment'
+    jobs:
+      - job: ansible
+        steps:
+          - script: |
+              if [ -z "${{ parameters.vm_public_ip }}" ] || [ -z "${{ parameters.rds_endpoint }}" ]; then
+                echo "Error: Both vm_public_ip and rds_endpoint parameters are required"
+                exit 1
+              fi
+            displayName: 'Validate Parameters'
+
+          - task: DownloadSecureFile@1
+            name: download_ssh_key
+            inputs:
+              secureFile: "id_rsa"
+
+          - script: |
+              mkdir -p ~/.ssh
+              cp $(download_ssh_key.secureFilePath) ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
+              echo "StrictHostKeyChecking no" > ~/.ssh/config
+            displayName: "Setup SSH Private Key"
+          
+          - script: |
+              echo "create db.yml"
+              cat > vars/db.yml <<EOF
+              ---
+              rds_endpoint: ${{ parameters.rds_endpoint }}
+              rds_admin: '$(TF_RDS_ADMIN)'
+              rds_admin_password: '$(TF_RDS_ADMIN_PASSWORD)'
+              db_name: '$(db_name)'
+              db_user: '$(db_user)'
+              db_password: '$(db_password)'
+              EOF
+            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
+            displayName: 'Create DB YML'
+
+          - script: |
+              echo "create inventory.ini file"
+              cat > inventory.ini <<EOF
+              [app]
+              ${{ parameters.vm_public_ip }}
+
+              [all:vars]
+              ansible_user="ec2-user"
+              ansible_ssh_private_key_file=~/.ssh/id_rsa
+              ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+              EOF
+            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
+            displayName: 'Create Inventory File'
+
+          - script: |
+              echo "=== Inventory file ==="
+              cat inventory.ini
+              echo "=== Group vars ==="
+              ls -la vars/
+              cat vars/db.yml
+            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
+            displayName: 'Verify Ansible Files'
+
+          - script: |
+              ansible-playbook -i inventory.ini bookreview.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
+            displayName: 'Run Ansible Playbook'
+            env:
+              ANSIBLE_HOST_KEY_CHECKING: "False"
