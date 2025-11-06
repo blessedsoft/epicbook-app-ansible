@@ -24,6 +24,8 @@
     url: https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm
     dest: /tmp/mysql80-community-release-el9-1.noarch.rpm
     mode: '0644'
+    headers:
+      User-Agent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
 
 - name: Install MySQL Yum repository
   ansible.builtin.dnf:
