@@ -82,7 +82,7 @@ stages:
             displayName: 'Verify Ansible Files'
 
           - script: |
-              ansible-playbook -i inventory.ini bookreview.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              ansible-playbook -i inventory.ini epicbook.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Run Ansible Playbook'
             env:
