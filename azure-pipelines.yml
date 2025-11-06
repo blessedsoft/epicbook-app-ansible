@@ -22,7 +22,7 @@ stages:
   - stage: ansibleAction
     displayName: 'Ansible Deployment'
     jobs:
-      - job: ansible-playbook
+      - job: ansiblePlaybook
         displayName: 'Deployment with Ansible'
         steps:
           - script: |
