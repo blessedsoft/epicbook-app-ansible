@@ -56,11 +56,14 @@
 - name: Import database schema (non-SSL)
   shell: |
     mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/BuyTheBook_Schema.sql
+  when: schema_check.stdout_lines | length == 0
 
 - name: Import Author seed data
   shell: |
     mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/author_seed.sql
+  when: schema_check.stdout_lines | length == 0
 
 - name: Import Books seed data
   shell: |
     mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/books_seed.sql
+  when: schema_check.stdout_lines | length == 0
