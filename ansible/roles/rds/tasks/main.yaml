@@ -61,7 +61,7 @@
     name: "{{ db_name }}"
     state: import
     target: /home/azureuser/epicbook/db/BuyTheBook_Schema.sql
-    login_ssl: yes
+    ssl_ca: /home/azureuser/epicbook/db/BaltimoreCyberTrustRoot.crt.pem
 
 
 - name: Import Author seed data
