@@ -10,18 +10,12 @@ variables:
 resources:
   pipelines:
     - pipeline: infraPipeline   # reference name for Terraform pipeline
-      source: blessedsoft.epicbook-terraform-ansible   # the name of your Terraform pipeline
-      trigger: true             # optional, auto-trigger when Terraform completes
+      source: blessedsoft/epicbook-terraform-ansible   # exact name of Terraform pipeline
+      trigger: true             # auto-trigger when Terraform completes
 
-parameters:
-  - name: 'vm_public_ip'
-    type: string
-    default: $[ dependencies.infraPipeline.outputs['Terraform_Apply.app_public_ip'] ]
-    displayName: 'VM Public IP'
-  - name: 'db_host'
-    type: string
-    default: $[ dependencies.infraPipeline.outputs['Terraform_Apply.db_host'] ]
-    displayName: 'Azure MySQL Endpoint'
+variables:
+  vm_public_ip: $[ dependencies.infraPipeline.outputs['Terraform_Apply.app_public_ip'] ]
+  db_host: $[ dependencies.infraPipeline.outputs['Terraform_Apply.db_host'] ]
 
 stages:
   - stage: ansibleAction
@@ -31,19 +25,13 @@ stages:
         displayName: 'Deployment with Ansible'
         steps:
 
-          # --------------------------------------------------------------------
-          # Step 1: Validate parameters
-          # --------------------------------------------------------------------
           - script: |
-              if [ -z "${{ parameters.vm_public_ip }}" ] || [ -z "${{ parameters.db_host }}" ]; then
+              if [ -z "$(vm_public_ip)" ] || [ -z "$(db_host)" ]; then
                 echo "Error: Both VM Public IP and DB Host are required"
                 exit 1
               fi
             displayName: 'Validate Parameters'
 
-          # --------------------------------------------------------------------
-          # Step 2: Download SSH Key
-          # --------------------------------------------------------------------
           - task: DownloadSecureFile@1
             name: download_ssh_key
             inputs:
@@ -56,14 +44,11 @@ stages:
               echo "StrictHostKeyChecking no" > ~/.ssh/config
             displayName: "Setup SSH Private Key"
 
-          # --------------------------------------------------------------------
-          # Step 3: Create DB vars file dynamically
-          # --------------------------------------------------------------------
           - script: |
               mkdir -p vars
               cat > vars/db.yml <<EOF
               ---
-              db_host: ${{ parameters.db_host }}
+              db_host: $(db_host)
               mysql_admin: '$(mysql_admin)'
               mysql_admin_password: '$(mysql_admin_password)'
               db_name: '$(db_name)'
@@ -73,13 +58,10 @@ stages:
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Create DB YML'
 
-          # --------------------------------------------------------------------
-          # Step 4: Create dynamic inventory
-          # --------------------------------------------------------------------
           - script: |
               cat > inventory.ini <<EOF
               [app]
-              ${{ parameters.vm_public_ip }}
+              $(vm_public_ip)
 
               [all:vars]
               ansible_user="azureuser"
@@ -89,9 +71,6 @@ stages:
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Create Inventory File'
 
-          # --------------------------------------------------------------------
-          # Step 5: Verify files
-          # --------------------------------------------------------------------
           - script: |
               echo "=== Inventory file ==="
               cat inventory.ini
@@ -101,11 +80,8 @@ stages:
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Verify Ansible Files'
 
-          # --------------------------------------------------------------------
-          # Step 6: Run Ansible Playbook
-          # --------------------------------------------------------------------
           - script: |
-              ansible-playbook -i inventory.ini epicbook.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              ansible-playbook -i inventory.ini epicbook.yml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Run Ansible Playbook'
             env:
