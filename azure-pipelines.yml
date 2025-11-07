@@ -10,7 +10,7 @@ variables:
 resources:
   pipelines:
     - pipeline: terraformPipeline   # reference name
-      source: TerraformPipeline     # the name of your Terraform pipeline
+      source: blessedsoft.epicbook-terraform-ansible     # the name of your Terraform pipeline
       trigger: true                 # optional: automatically trigger when Terraform pipeline completes
 
 parameters:
