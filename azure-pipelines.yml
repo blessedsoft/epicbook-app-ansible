@@ -9,18 +9,18 @@ variables:
 
 resources:
   pipelines:
-    - pipeline: terraformPipeline   # reference name
-      source: blessedsoft.epicbook-terraform-ansible     # the name of your Terraform pipeline
-      trigger: true                 # optional: automatically trigger when Terraform pipeline completes
+    - pipeline: infraPipeline   # reference name for Terraform pipeline
+      source: blessedsoft.epicbook-terraform-ansible   # the name of your Terraform pipeline
+      trigger: true             # optional, auto-trigger when Terraform completes
 
 parameters:
-  - name: 'app_public_ip'
+  - name: 'vm_public_ip'
     type: string
-    default: $[ dependencies.terraformPipeline.outputs['Terraform_Apply.VM_PUBLIC_IP'] ]
+    default: $[ dependencies.infraPipeline.outputs['Terraform_Apply.app_public_ip'] ]
     displayName: 'VM Public IP'
   - name: 'db_host'
     type: string
-    default: $[ dependencies.terraformPipeline.outputs['Terraform_Apply.DB_HOST'] ]
+    default: $[ dependencies.infraPipeline.outputs['Terraform_Apply.db_host'] ]
     displayName: 'Azure MySQL Endpoint'
 
 stages:
@@ -30,11 +30,12 @@ stages:
       - job: ansiblePlaybook
         displayName: 'Deployment with Ansible'
         steps:
+
           # --------------------------------------------------------------------
           # Step 1: Validate parameters
           # --------------------------------------------------------------------
           - script: |
-              if [ -z "${{ parameters.app_public_ip }}" ] || [ -z "${{ parameters.db_host }}" ]; then
+              if [ -z "${{ parameters.vm_public_ip }}" ] || [ -z "${{ parameters.db_host }}" ]; then
                 echo "Error: Both VM Public IP and DB Host are required"
                 exit 1
               fi
@@ -78,7 +79,7 @@ stages:
           - script: |
               cat > inventory.ini <<EOF
               [app]
-              ${{ parameters.app_public_ip }}
+              ${{ parameters.vm_public_ip }}
 
               [all:vars]
               ansible_user="azureuser"
@@ -104,7 +105,7 @@ stages:
           # Step 6: Run Ansible Playbook
           # --------------------------------------------------------------------
           - script: |
-              ansible-playbook -i inventory.ini epicbook.yml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              ansible-playbook -i inventory.ini epicbook.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Run Ansible Playbook'
             env:
