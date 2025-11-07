@@ -1,4 +1,4 @@
-db_host: epicbook-mysql-default-9yloi.mysql.database.azure.com
+db_host: epicbook-mysql-default-e27xb.mysql.database.azure.com
 mysql_admin: devepicuser
 mysql_admin_password: DevStrongPassword123!
 db_name: bookstore

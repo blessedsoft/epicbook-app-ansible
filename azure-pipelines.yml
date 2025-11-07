@@ -1,42 +1,42 @@
-trigger: none
+# azure-pipelines-app.yaml
 
-pool: 
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
   name: 'linux-hosted-agent'
 
-variables: 
-  - group: terraform-variables
-  - group: database-vars
-
-resources:
-  pipelines:
-    - pipeline: infraPipeline   # reference name for Terraform pipeline
-      source: blessedsoft/epicbook-terraform-ansible   # exact name of Terraform pipeline
-      trigger: true             # auto-trigger when Terraform completes
-
-variables:
-  vm_public_ip: $[ dependencies.infraPipeline.outputs['Terraform_Apply.app_public_ip'] ]
-  db_host: $[ dependencies.infraPipeline.outputs['Terraform_Apply.db_host'] ]
-
 stages:
-  - stage: ansibleAction
-    displayName: 'Ansible Deployment'
+  - stage: DeployApp
+    displayName: "Deploy Application Code via Ansible"
     jobs:
-      - job: ansiblePlaybook
-        displayName: 'Deployment with Ansible'
+      - job: App_Deployment
+        displayName: "Run Ansible Playbook to Deploy App"
+        pool:
+          name: "linux-hosted-agent"
+
         steps:
-
+          # ---------------------------------------------------------------
+          # Step 1: Install Ansible and dependencies
+          # ---------------------------------------------------------------
           - script: |
-              if [ -z "$(vm_public_ip)" ] || [ -z "$(db_host)" ]; then
-                echo "Error: Both VM Public IP and DB Host are required"
-                exit 1
-              fi
-            displayName: 'Validate Parameters'
+              sudo apt update
+              sudo apt install -y ansible sshpass
+            displayName: "Install Ansible & SSH Dependencies"
 
+          # ---------------------------------------------------------------
+          # Step 2: Download SSH key
+          # ---------------------------------------------------------------
           - task: DownloadSecureFile@1
             name: download_ssh_key
             inputs:
               secureFile: "azure_rsa"
 
+          # ---------------------------------------------------------------
+          # Step 3: Setup SSH private key
+          # ---------------------------------------------------------------
           - script: |
               mkdir -p ~/.ssh
               cp $(download_ssh_key.secureFilePath) ~/.ssh/azure_rsa
@@ -44,45 +44,12 @@ stages:
               echo "StrictHostKeyChecking no" > ~/.ssh/config
             displayName: "Setup SSH Private Key"
 
+          # ---------------------------------------------------------------
+          # Step 4: Run Ansible Playbook
+          # ---------------------------------------------------------------
           - script: |
-              mkdir -p vars
-              cat > vars/db.yml <<EOF
-              ---
-              db_host: $(db_host)
-              mysql_admin: '$(mysql_admin)'
-              mysql_admin_password: '$(mysql_admin_password)'
-              db_name: '$(db_name)'
-              db_user: '$(db_user)'
-              db_password: '$(db_password)'
-              EOF
-            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
-            displayName: 'Create DB YML'
-
-          - script: |
-              cat > inventory.ini <<EOF
-              [app]
-              $(vm_public_ip)
-
-              [all:vars]
-              ansible_user="azureuser"
-              ansible_ssh_private_key_file=~/.ssh/azure_rsa
-              ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-              EOF
-            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
-            displayName: 'Create Inventory File'
-
-          - script: |
-              echo "=== Inventory file ==="
-              cat inventory.ini
-              echo "=== Group vars ==="
-              ls -la vars/
-              cat vars/db.yml
-            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
-            displayName: 'Verify Ansible Files'
-
-          - script: |
+              cd ansible
               ansible-playbook -i inventory.ini epicbook.yml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-            workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
-            displayName: 'Run Ansible Playbook'
+            displayName: "Run Ansible Playbook"
             env:
               ANSIBLE_HOST_KEY_CHECKING: "False"
