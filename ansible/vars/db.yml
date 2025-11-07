@@ -4,3 +4,4 @@ mysql_admin_password: DevStrongPassword123!
 db_name: bookstore
 db_user: devepicuser
 db_password: DevStrongPassword123!
+db_ssl_mode: DISABLED
