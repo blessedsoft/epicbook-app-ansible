@@ -19,7 +19,7 @@ stages:
 
         steps:
           # ---------------------------------------------------------------
-          # Step 1: Install Ansible and dependencies
+          # Step 1: Install Ansible and dependencies.
           # ---------------------------------------------------------------
           - script: |
               sudo apt update
