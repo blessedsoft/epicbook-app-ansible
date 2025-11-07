@@ -1,6 +1,6 @@
-rds_endpoint: 'epicbk-rds.cjy24seigdl9.ap-southeast-1.rds.amazonaws.com'
-rds_admin: 'imshakil'
-rds_admin_password: 'yourRDSpassword'
-db_name: 'bookstore'
-db_user: 'theepicbook'
-db_password: 'temp#123'
+db_host: epicbook-mysql-default-9yloi.mysql.database.azure.com
+mysql_admin: devepicuser
+mysql_admin_password: DevStrongPassword123!
+db_name: bookstore
+db_user: devepicuser
+db_password: DevStrongPassword123!

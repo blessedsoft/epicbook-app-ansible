@@ -1,15 +1,16 @@
 - name: Update system packages
-  ansible.builtin.dnf:
-    update_cache: true
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist
 
 - name: Install required packages
-  ansible.builtin.dnf:
+  ansible.builtin.apt:
     name:
       - git
       - nodejs
       - npm
-      - mariadb1011-server
       - python3-pip
+      - mysql-client        # for connecting to Azure MySQL Flexible Server
     state: present
   tags: ["packages"]
 
@@ -19,11 +20,3 @@
     dest: "{{ project_dir }}"
     version: "main"
     force: true
-
-- name: Start and enable MariaDB
-  ansible.builtin.service:
-    name: mariadb
-    state: started
-    enabled: true
-  register: app_mariadb_service
-  tags: ['database']

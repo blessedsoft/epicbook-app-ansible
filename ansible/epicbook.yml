@@ -1,5 +1,5 @@
 ---
-- name: Deploy EpicBook Application on AWS EC2 Instance
+- name: Deploy EpicBook Application on Azure VM
   hosts: app
   become: true
   vars_files:

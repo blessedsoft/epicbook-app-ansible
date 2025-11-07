@@ -1,22 +1,27 @@
 trigger: none
 
 pool: 
-  name: 'aws-ubuntu'
+  name: 'linux-hosted-agent'
 
 variables: 
   - group: terraform-variables
   - group: database-vars
 
-parameters:
-  - name: 'vm_public_ip'
-    type: string
-    default: ''
-    displayName: 'VM Public IP'
-  - name: 'rds_endpoint'
-    type: string
-    default: ''
-    displayName: 'RDS Endpoint'
+resources:
+  pipelines:
+    - pipeline: terraformPipeline   # reference name
+      source: TerraformPipeline     # the name of your Terraform pipeline
+      trigger: true                 # optional: automatically trigger when Terraform pipeline completes
 
+parameters:
+  - name: 'app_public_ip'
+    type: string
+    default: $[ dependencies.terraformPipeline.outputs['Terraform_Apply.VM_PUBLIC_IP'] ]
+    displayName: 'VM Public IP'
+  - name: 'db_host'
+    type: string
+    default: $[ dependencies.terraformPipeline.outputs['Terraform_Apply.DB_HOST'] ]
+    displayName: 'Azure MySQL Endpoint'
 
 stages:
   - stage: ansibleAction
@@ -25,32 +30,41 @@ stages:
       - job: ansiblePlaybook
         displayName: 'Deployment with Ansible'
         steps:
+          # --------------------------------------------------------------------
+          # Step 1: Validate parameters
+          # --------------------------------------------------------------------
           - script: |
-              if [ -z "${{ parameters.vm_public_ip }}" ] || [ -z "${{ parameters.rds_endpoint }}" ]; then
-                echo "Error: Both vm_public_ip and rds_endpoint parameters are required"
+              if [ -z "${{ parameters.app_public_ip }}" ] || [ -z "${{ parameters.db_host }}" ]; then
+                echo "Error: Both VM Public IP and DB Host are required"
                 exit 1
               fi
             displayName: 'Validate Parameters'
 
+          # --------------------------------------------------------------------
+          # Step 2: Download SSH Key
+          # --------------------------------------------------------------------
           - task: DownloadSecureFile@1
             name: download_ssh_key
             inputs:
-              secureFile: "id_rsa"
+              secureFile: "azure_rsa"
 
           - script: |
               mkdir -p ~/.ssh
-              cp $(download_ssh_key.secureFilePath) ~/.ssh/id_rsa
-              chmod 600 ~/.ssh/id_rsa
+              cp $(download_ssh_key.secureFilePath) ~/.ssh/azure_rsa
+              chmod 600 ~/.ssh/azure_rsa
               echo "StrictHostKeyChecking no" > ~/.ssh/config
             displayName: "Setup SSH Private Key"
-          
+
+          # --------------------------------------------------------------------
+          # Step 3: Create DB vars file dynamically
+          # --------------------------------------------------------------------
           - script: |
-              echo "create db.yml"
+              mkdir -p vars
               cat > vars/db.yml <<EOF
               ---
-              rds_endpoint: ${{ parameters.rds_endpoint }}
-              rds_admin: '$(TF_RDS_ADMIN)'
-              rds_admin_password: '$(TF_RDS_ADMIN_PASSWORD)'
+              db_host: ${{ parameters.db_host }}
+              mysql_admin: '$(mysql_admin)'
+              mysql_admin_password: '$(mysql_admin_password)'
               db_name: '$(db_name)'
               db_user: '$(db_user)'
               db_password: '$(db_password)'
@@ -58,20 +72,25 @@ stages:
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Create DB YML'
 
+          # --------------------------------------------------------------------
+          # Step 4: Create dynamic inventory
+          # --------------------------------------------------------------------
           - script: |
-              echo "create inventory.ini file"
               cat > inventory.ini <<EOF
               [app]
-              ${{ parameters.vm_public_ip }}
+              ${{ parameters.app_public_ip }}
 
               [all:vars]
-              ansible_user="ec2-user"
-              ansible_ssh_private_key_file=~/.ssh/id_rsa
+              ansible_user="azureuser"
+              ansible_ssh_private_key_file=~/.ssh/azure_rsa
               ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
               EOF
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Create Inventory File'
 
+          # --------------------------------------------------------------------
+          # Step 5: Verify files
+          # --------------------------------------------------------------------
           - script: |
               echo "=== Inventory file ==="
               cat inventory.ini
@@ -81,8 +100,11 @@ stages:
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Verify Ansible Files'
 
+          # --------------------------------------------------------------------
+          # Step 6: Run Ansible Playbook
+          # --------------------------------------------------------------------
           - script: |
-              ansible-playbook -i inventory.ini epicbook.yaml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+              ansible-playbook -i inventory.ini epicbook.yml --ssh-extra-args "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
             workingDirectory: '$(System.DefaultWorkingDirectory)/ansible'
             displayName: 'Run Ansible Playbook'
             env:

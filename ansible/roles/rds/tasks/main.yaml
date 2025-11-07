@@ -1,64 +1,73 @@
 ---
-- name: Install PyMySQL
-  ansible.builtin.pip:
+- name: Install required packages
+  become: yes
+  apt:
+    name:
+      - python3-pip
+      - mysql-client
+    state: present
+    update_cache: yes
+  tags: ['database']
+
+- name: Install PyMySQL (for Python-based DB access if needed)
+  pip:
     name: PyMySQL
     state: present
   tags: ['database']
-- name: Create App Database
-  community.mysql.mysql_db:
-    name: "{{ db_name }}"
+
+# ------------------------------------------------------------------------------
+# Create database (using mysql CLI)
+# ------------------------------------------------------------------------------
+- name: Ensure PyMySQL is installed
+  ansible.builtin.pip:
+    name: PyMySQL
     state: present
-    login_host: "{{ rds_endpoint }}"
-    login_user: "{{ rds_admin }}"
-    login_password: "{{ rds_admin_password }}"
-  tags: ['database']
-- name: Create database user
-  community.mysql.mysql_user:
-    name: "{{ db_user }}"
-    host: "%"
-    password: "{{ db_password }}"
-    priv: "{{ db_name }}.*:ALL"
-    state: present
-    login_user: "{{ rds_admin }}"
-    login_password: "{{ rds_admin_password }}"
-    login_host: "{{ rds_endpoint }}"
-  tags: ['database']
 
-- name: Check if rds_schema exists
-  community.mysql.mysql_query:
-    login_user: "{{ db_user }}"
-    login_password: "{{ db_password }}"
-    login_host: "{{ rds_endpoint }}"
-    login_db: "{{ db_name }}"
-    query: "SHOW TABLES LIKE 'Author'"
-  register: rds_schema_check
-  failed_when: false
-  tags: ['database']
-- name: Debug rds chema check
-  ansible.builtin.debug:
-    var: rds_schema_check
+- name: Create application database on Azure MySQL
+  ansible.builtin.command: >
+    mysql -h {{ db_host }}
+    -u {{ mysql_admin }}
+    -p{{ mysql_admin_password }}
+    -e "CREATE DATABASE IF NOT EXISTS {{ db_name }};"
 
-- name: Import database schema
-  community.mysql.mysql_db:
-    name: "{{ db_name }}"
-    state: import
-    target: "{{ project_dir }}/db/BuyTheBook_Schema.sql"
-    login_user: "{{ db_user }}"
-    login_password: "{{ db_password }}"
-    login_host: "{{ rds_endpoint }}"
-  when: rds_schema_check.rowcount[0] == 0
-  tags: ['database']
+- name: Create application database user
+  ansible.builtin.command: >
+    mysql -h {{ db_host }}
+    -u {{ mysql_admin }}
+    -p{{ mysql_admin_password }}
+    -e "CREATE USER IF NOT EXISTS '{{ db_user }}'@'%' IDENTIFIED BY '{{ db_password }}';
+        GRANT ALL PRIVILEGES ON {{ db_name }}.* TO '{{ db_user }}'@'%';
+        FLUSH PRIVILEGES;"
 
-- name: Import seed data
-  community.mysql.mysql_db:
-    name: "{{ db_name }}"
-    state: import
-    target: "{{ item }}"
-    login_user: "{{ db_user }}"
-    login_password: "{{ db_password }}"
-    login_host: "{{ rds_endpoint }}"
-  loop:
-    - "{{ project_dir }}/db/author_seed.sql"
-    - "{{ project_dir }}/db/books_seed.sql"
-  when: rds_schema_check.rowcount[0] == 0
-  tags: ['database']
+- name: Check if Author table exists
+  shell: |
+    mysql -h {{ db_host }} -u {{ db_user }} -p'{{ db_password }}' {{ db_name }} \
+    -e "SHOW TABLES LIKE 'Author';"
+  register: schema_check
+  ignore_errors: yes
+
+- name: Debug schema check
+  debug:
+    var: schema_check.stdout_lines
+
+# -------------------------------------------------------------------------------
+# 3. Import schema and seed data if schema doesn't exist
+# -------------------------------------------------------------------------------
+- name: Import BuyTheBook schema
+  command: >
+    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }}
+    < /home/azureuser/epicbook/db/BuyTheBook_Schema.sql
+  when: schema_check is defined and schema_check.stdout == ""
+
+- name: Import Author seed data
+  command: >
+    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }}
+    < /home/azureuser/epicbook/db/author_seed.sql
+  when: schema_check is defined and schema_check.stdout == ""
+
+- name: Import Books seed data
+  command: >
+    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }}
+    < /home/azureuser/epicbook/db/books_seed.sql
+  when: schema_check is defined and schema_check.stdout == ""
+  
