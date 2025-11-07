@@ -57,16 +57,10 @@
   shell: |
     mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/BuyTheBook_Schema.sql
 
-
 - name: Import Author seed data
-  command: >
-    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }}
-    < /home/azureuser/epicbook/db/author_seed.sql
-  when: schema_check is defined and schema_check.stdout == ""
+  shell: |
+    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/author_seed.sql
 
 - name: Import Books seed data
-  command: >
-    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }}
-    < /home/azureuser/epicbook/db/books_seed.sql
-  when: schema_check is defined and schema_check.stdout == ""
-  
+  shell: |
+    mysql -h {{ db_host }} -u {{ db_user }} -p{{ db_password }} {{ db_name }} < /home/azureuser/epicbook/db/books_seed.sql
